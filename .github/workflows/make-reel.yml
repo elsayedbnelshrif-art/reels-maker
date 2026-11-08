@@ -1,0 +1,113 @@
+name: اعمل ريل - Make Reel
+
+on:
+  workflow_dispatch:
+    inputs:
+      script:
+        description: "نص الريل بالعربي (الكلام اللي هيتقال)"
+        required: true
+        type: string
+      keywords:
+        description: "كلمات بحث للقطات بالإنجليزي، مفصولة بفاصلة (مثال: city night, cars, desert)"
+        required: true
+        type: string
+      voice:
+        description: "الصوت"
+        required: true
+        default: "ar-EG-SalmaNeural-Female"
+        type: choice
+        options:
+          - ar-EG-SalmaNeural-Female
+          - ar-EG-ShakirNeural-Male
+          - ar-SA-ZariyahNeural-Female
+          - ar-SA-HamedNeural-Male
+      voice_rate:
+        description: "سرعة الكلام (1.0 عادي، 1.1 أسرع شوية)"
+        required: true
+        default: "1.0"
+        type: string
+      subtitle_position:
+        description: "مكان الترجمة"
+        required: true
+        default: "bottom"
+        type: choice
+        options: [bottom, center, top]
+
+jobs:
+  make-reel:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Get MoneyPrinterTurbo
+        uses: actions/checkout@v4
+        with:
+          repository: harry0703/MoneyPrinterTurbo
+          ref: c235354804104665b58679223847f78c2b5e27d4
+          path: mpt
+
+      - name: Install ffmpeg
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+
+      - name: Install dependencies
+        working-directory: mpt
+        run: uv sync --frozen
+
+      - name: Write config
+        working-directory: mpt
+        env:
+          PIXABAY_API_KEY: ${{ secrets.PIXABAY_API_KEY }}
+        run: |
+          if [ -z "$PIXABAY_API_KEY" ]; then
+            echo "::error::PIXABAY_API_KEY secret is missing. Add it in Settings > Secrets and variables > Actions."
+            exit 1
+          fi
+          cp config.example.toml config.toml
+          python3 - <<'PY'
+          import os, re
+          p = "config.toml"
+          s = open(p, encoding="utf-8").read()
+          key = os.environ["PIXABAY_API_KEY"].strip()
+          s = re.sub(r'(?m)^video_source\s*=.*$', 'video_source = "pixabay"', s, count=1)
+          s = re.sub(r'(?m)^pixabay_api_keys\s*=.*$', f'pixabay_api_keys = ["{key}"]', s, count=1)
+          open(p, "w", encoding="utf-8").write(s)
+          PY
+
+      - name: Make the reel
+        working-directory: mpt
+        env:
+          SCRIPT: ${{ inputs.script }}
+          KEYWORDS: ${{ inputs.keywords }}
+          VOICE: ${{ inputs.voice }}
+          RATE: ${{ inputs.voice_rate }}
+          POS: ${{ inputs.subtitle_position }}
+        run: |
+          uv run python cli.py \
+            --video-script "$SCRIPT" \
+            --video-terms "$KEYWORDS" \
+            --video-language ar-EG \
+            --video-source pixabay \
+            --video-aspect 9:16 \
+            --voice-name "$VOICE" \
+            --voice-rate "$RATE" \
+            --subtitle-enabled \
+            --subtitle-position "$POS" \
+            --font-size 70 \
+            --stroke-width 2 \
+            --stop-at video
+
+      - name: Collect video
+        run: |
+          mkdir -p out
+          find mpt/storage -name "final-*.mp4" -exec cp {} out/ \;
+          ls -la out
+          test -n "$(ls out)" || { echo "::error::No video was produced. Check the log above."; exit 1; }
+
+      - name: Upload video
+        uses: actions/upload-artifact@v4
+        with:
+          name: reel
+          path: out/*.mp4
+          retention-days: 14
