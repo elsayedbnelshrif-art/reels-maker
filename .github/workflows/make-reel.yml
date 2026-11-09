@@ -33,6 +33,9 @@ on:
         type: choice
         options: [bottom, center, top]
 
+permissions:
+  contents: write
+
 jobs:
   make-reel:
     runs-on: ubuntu-latest
@@ -111,3 +114,26 @@ jobs:
           name: reel
           path: out/*.mp4
           retention-days: 14
+
+      - name: Save video to the "videos" branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+          N: ${{ github.run_number }}
+        run: |
+          git clone --depth 1 "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" self
+          cd self
+          git config user.name "reels-bot"
+          git config user.email "reels-bot@users.noreply.github.com"
+          if git fetch --depth 1 origin videos 2>/dev/null; then
+            git checkout -B videos FETCH_HEAD
+          else
+            git checkout --orphan videos
+            git rm -rfq .
+          fi
+          mkdir -p reels
+          cp ../out/final-1.mp4 "reels/reel-${N}.mp4"
+          git add reels
+          git commit -qm "Reel #${N}"
+          git push origin videos
+          URL="https://github.com/${GITHUB_REPOSITORY}/raw/videos/reels/reel-${N}.mp4"
+          echo "### 🎬 [Download reel #${N}](${URL})" >> "$GITHUB_STEP_SUMMARY"

@@ -13,4 +13,4 @@ Settings ← Secrets and variables ← Actions ← New repository secret
 2. دوس **Run workflow**.
 3. اكتب النص العربي، وكلمات البحث بالإنجليزي، واختار الصوت ← **Run workflow**.
 4. استنى 5–10 دقايق لحد ما تبقى العلامة خضرا ✅.
-5. ادخل على الـ Run وانزل لتحت لجزء **Artifacts** ← دوس **reel** ← هينزل ملف zip فيه الفيديو.
+5. ادخل على الـ Run، هتلاقي فوق لينك **Download reel** — أو افتح فرع `videos` في الـ Repo، الفيديوهات كلها في فولدر `reels`.
